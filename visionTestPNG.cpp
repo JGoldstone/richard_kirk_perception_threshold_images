@@ -2,9 +2,13 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <parse.h>
+// #include <parse.h>
+#include "boost/program_options.hpp"
 #include <time.h>
 #include <png.h>
+
+#include <ostream>
+using std::ostringstream;
 
 /*
   Make PPM 'T' image for standard monitor 
@@ -13,55 +17,88 @@
 */
 
 int main(int argc, char *argv[]) {
-  double col[25][13][3], L, dL;
-  double da=0.0, db=0.0, dP;
+  // args
+  double L;
+  double dL;
+  double dP;
+  int square;
+  int border;
+  int seed;
+  bool createSolution;
+  bool createTest;
+
+  int seedFromTime = (int)time(NULL);
+
+
+  double col[25][13][3];
+  double da=0.0, db=0.0;
 
   // confusion points for defective vision
   double xc[3] = {0.747, 1.080, 0.171};
   double yc[3] = {0.253, -0.080, 0.00};
   double white[3] = {0.950173, 1.0, 1.08726}; // XYZ at 1 ft-L D65
   double shift[3], a, b, de, contrast;
-  int seed;
 
   FILE *out;
 
-  int x, y, i, nx, ny, NX, NY, square, border, width, height, n;
+  int x, y, i, nx, ny, NX, NY, width, height, n;
   int tristimulus = -1;
 
-  argc = parseArgs(argc, argv);
-  if (argc != 2 || argFlag['i']) {
-    printf("%s [options] <output_file> makes 3x6 PPM 'T' test image\n"
-	   "options:\n"
-	   "  L=%%f  luminance        (default 70)\n"
-	   "  d=%%f  luminance dither (default 15)\n"
-	   "  p=%%f  pixel RGB dither (default 3.0)\n"
-	   "  S=%%d  square size      (default 15)\n"
-	   "  B=%%d  border size      (default 1)\n"
-	   "  r=%%d  random seed      (default uses time)\n"
-	   "  -s    make solution image, all patches with large contrast\n"
-	   "  -p    output a PNG image (default PPM)\n"
-	   "  -i    info message (this is it)\n"
-	   , argv[0] );
-    exit(1);
+  namespace po = boost::program_options;
+  po::options_description desc("Allowed options");
+  desc.add_options()
+  ("help", "produce help message")
+  ("luminance,L",             po::value<double>(&L)->default_value(70),             "luminance")
+  ("luminance_dither,d",      po::value<double>(&dL)->default_value(15),            "luminance dither")
+  ("pixel_dither,p",          po::value<double>(&dP)->default_value(3),             "pixel dither")
+  ("square_size,S",           po::value<int>(&square)->default_value(15),             "square size")
+  ("border_size,B",           po::value<int>(&border)->default_value(1),              "border size")
+  ("random_seed,r",           po::value<int>(&seed)->default_value(seedFromTime),    "random seed (default uses time")
+  ("create_solution_image", po::value<bool>(&createSolution)->default_value(false), "create solution image, all patches with large contrast")
+  ("create_test_image",     po::value<bool>(&createTest)->default_value(false),     "output PNG image (default PPM")
+  ;
+  po::positional_options_description p;
+  // eventually put filename base here as positional argument
+  // p.add();
+  po::variables_map vm;
+  // po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+  po::notify(vm); // what does this do?
+  if (vm.count("help") > 0)
+  {
+    ostringstream oSS;
+    oSS << desc << "\n";
+    fprintf(stderr, "%s", oSS.str().c_str());
+    return EXIT_FAILURE;
   }
 
-  /* Seed random function with time... */
-  seed = (int)time(NULL);
-  srand( parseInteger('r', seed, seed) );
+  // argc = parseArgs(argc, argv);
+  // if (argc != 2 || argFlag['i']) {
+  //   printf("%s [options] <output_file> makes 3x6 PPM 'T' test image\n"
+	//   "options:\n"
+	//   "  L=%%f  luminance        (default 70)\n"
+	//   "  d=%%f  luminance dither (default 15)\n"
+	//   "  p=%%f  pixel RGB dither (default 3.0)\n"
+	//   "  S=%%d  square size      (default 15)\n"
+	//   "  B=%%d  border size      (default 1)\n"
+	//   "  r=%%d  random seed      (default uses time)\n"
+	//   "  -s    make solution image, all patches with large contrast\n"
+	//   "  -p    output a PNG image (default PPM)\n"
+	//   "  -i    info message (this is it)\n"
+	//   , argv[0] );
+  //   exit(1);
+  // }
 
-  out = fopen(argv[1], "w");
-  if (out == NULL) {
-    fprintf(stderr, "Error: unable to open file %s.\n", argv[1]);
-    exit(1);
-  }
 
-  L = parseDouble('L', 70.0, -1.0);
+  L = vm["luminance"].as<double>();
+  // L = parseDouble('L', 70.0, -1.0);
   if (L <= 10.0) {
     fprintf(stderr, "Error: illegal or malformed 'L=' argument\n");
     exit(1);
   }
- 
-  dL = parseDouble('d', 15.0, -1.0);
+
+  dL = vm["luminance_dither"].as<double>();
+  // dL = parseDouble('d', 15.0, -1.0);
   if (L <= 0.0) {
     fprintf(stderr, "Error: illegal or malformed 'd=' argument\n");
     exit(1);
@@ -69,24 +106,40 @@ int main(int argc, char *argv[]) {
   L -= dL/2.0;
   dL /= (double)RAND_MAX;
 
-  dP = parseDouble('p', 3.0, -1.0);
+  dP = vm["pixel_dither"].as<double>();
+  // dP = parseDouble('p', 3.0, -1.0);
   if (dP <= 0.0) {
     fprintf(stderr, "Error: illegal or malformed 'p=' argument\n");
     exit(1);
   }
   dP /= (double)RAND_MAX;
 
-  square = parseInteger('S', 15, -1);
+  square = vm["square_size"].as<int>();
+  // square = parseInteger('S', 15, -1);
   if (square < 1) {
     fprintf(stderr, "Error: illegal or malformed 'S=' argument\n");
     exit(1);
   }
 
-  border = parseInteger('B', 1, -1);
+  border = vm["border_size"].as<int>();
+  // border = parseInteger('B', 1, -1);
   if (border < 0) {
     fprintf(stderr, "Error: illegal or malformed 'B=' argument\n");
     exit(1);
   }
+
+  /* Seed random function with time... */
+  // srand(vm["seed"].as<int>());
+  fprintf(stderr, "\n");
+  fprintf(stderr, "            luminance: %f\n", L);
+  fprintf(stderr, "     luminance dither: %e\n", dL);
+  fprintf(stderr, "         pixel dither: %e\n", dP);
+  fprintf(stderr, "          square size: %d\n", square);
+  fprintf(stderr, "          border size: %d\n", border);
+  fprintf(stderr, "                 seed: %d\n", seed);
+  fprintf(stderr, "create solution image: %s\n", createSolution ? "true" : "false");
+  fprintf(stderr, "  create image as PNG: %s\n", createTest ? "true" : "false");
+  fprintf(stderr, "\n");
 
   width = 25*square + 26*border;
   height = 13*square + 14*border;
@@ -102,7 +155,7 @@ int main(int argc, char *argv[]) {
 
   /* Make 'T' symbol in second channel ... */
   for (NX=0; NX<6; ++NX) {
-    double del =  argFlag['s'] ? 64.0 : (double)(32 >> NX);
+    double del =  createSolution ? 64.0 : (double)(32 >> NX);
     for (NY=0; NY<3; ++NY) {
       switch (rand() % 4) { // Clockwise from vertical
       case 0:
@@ -151,8 +204,8 @@ int main(int argc, char *argv[]) {
 
     for (y=(4*NY); y<(4*NY+4); ++y) {
       for (x=0; x<25; ++x) {
-	col[x][y][2] = col[x][y][1]*db;
-	col[x][y][1] *= da;
+	      col[x][y][2] = col[x][y][1]*db;
+	      col[x][y][1] *= da;
       }          
     }
   }
@@ -188,7 +241,8 @@ int main(int argc, char *argv[]) {
   }
 
   /* Replicate, dither, then output as 8-bit image */
-  if (argFlag['p']) {     /* Output PNG */
+  if (createTest) {     /* Output PNG */
+    fprintf(stderr, "in createTest, sizeof(png_bytep) is %d, width %d, height %d\n", sizeof(png_bytep), width, height);
     /* Initialize pnglib memory and error handling */
     unsigned char * * graph_;
     graph_ = (png_bytepp)malloc(height * sizeof(png_bytep));
@@ -196,6 +250,8 @@ int main(int argc, char *argv[]) {
       graph_[n] = (png_bytep)malloc(3*width * sizeof(png_byte));
     }
   
+    fprintf(stderr, "just after png malloc code\n");
+
     png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png_ptr) {
       fprintf(stderr, "Error: PNGLIB initialization error.\n");
@@ -215,6 +271,7 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Error: Unknown PNGLIB error.\n");
       exit(1);
     }
+    fprintf(stderr, "just prior to png_init_io\n");
 
     png_init_io(png_ptr, out);
 
@@ -240,6 +297,8 @@ int main(int argc, char *argv[]) {
     text_ptr[2].text = strdup(png_convert_to_rfc1123(png_ptr, &mod_time));
     text_ptr[2].compression = PNG_TEXT_COMPRESSION_NONE;
     png_set_text(png_ptr, info_ptr, text_ptr, 3);
+
+    fprintf(stderr, "after setting text\n");
  
     /* Replicate, dither, then store pixel values */
     int pixelpos=0;
@@ -274,21 +333,24 @@ int main(int argc, char *argv[]) {
       pixelpos++;
     }
 
+    fprintf(stderr, "before writing PNG file\n");
     /* Write PNG file */
     png_write_info(png_ptr, info_ptr);
     png_write_image(png_ptr, graph_);
     png_write_end(png_ptr, info_ptr);
     // fclose(out);
 
+    fprintf(stderr, "before destroy_write_struct\n");
     png_destroy_write_struct(&png_ptr, &info_ptr);
   } else {     /* Output PPM */
+    fprintf(stderr, "in output PPM code\n");
     fprintf(out, "P6 %d %d 255\n", width, height); 
     for (y=0; y<13; ++y) {
       for (n=3*border*width; n; --n) fputc(0, out);
       for (ny=0; ny<square; ++ny) {
         for (x=0; x<25; ++x) {
           for (n=3*border; n; --n) fputc(0, out);
-	      for (nx=0; nx<square; ++nx) {
+	        for (nx=0; nx<square; ++nx) {
             for (n=0; n<3; ++n) {
               int v = (int)floor(col[x][y][n] + dP*rand());
               fputc( (v<0) ? 0 : (v>255) ? 255 : v, out);
