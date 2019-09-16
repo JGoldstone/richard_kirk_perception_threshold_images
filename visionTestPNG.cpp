@@ -7,6 +7,7 @@
 #include <time.h>
 #include <png.h>
 
+#include <string>
 #include <ostream>
 using std::ostringstream;
 
@@ -17,7 +18,7 @@ using std::ostringstream;
 */
 
 int main(int argc, char *argv[]) {
-  // args
+  // keyword args
   double L;
   double dL;
   double dP;
@@ -26,6 +27,9 @@ int main(int argc, char *argv[]) {
   int seed;
   bool createSolution;
   bool createTest;
+
+  // positional args
+  std::string testImagePath;
 
   int seedFromTime = (int)time(NULL);
 
@@ -48,21 +52,23 @@ int main(int argc, char *argv[]) {
   po::options_description desc("Allowed options");
   desc.add_options()
   ("help", "produce help message")
-  ("luminance,L",             po::value<double>(&L)->default_value(70),             "luminance")
-  ("luminance_dither,d",      po::value<double>(&dL)->default_value(15),            "luminance dither")
-  ("pixel_dither,p",          po::value<double>(&dP)->default_value(3),             "pixel dither")
-  ("square_size,S",           po::value<int>(&square)->default_value(15),             "square size")
-  ("border_size,B",           po::value<int>(&border)->default_value(1),              "border size")
-  ("random_seed,r",           po::value<int>(&seed)->default_value(seedFromTime),    "random seed (default uses time")
-  ("create_solution_image", po::value<bool>(&createSolution)->default_value(false), "create solution image, all patches with large contrast")
-  ("create_test_image",     po::value<bool>(&createTest)->default_value(false),     "output PNG image (default PPM")
+  ("luminance,L",           po::value<double>(&L)->default_value(70),                               "luminance")
+  ("luminance_dither,d",    po::value<double>(&dL)->default_value(15),                              "luminance dither")
+  ("pixel_dither,p",        po::value<double>(&dP)->default_value(3),                               "pixel dither")
+  ("square_size,S",         po::value<int>(&square)->default_value(15),                             "square size")
+  ("border_size,B",         po::value<int>(&border)->default_value(1),                              "border size")
+  ("random_seed,r",         po::value<int>(&seed)->default_value(seedFromTime),                     "random seed (default uses time")
+  ("create_solution_image", po::value<bool>(&createSolution)->default_value(false),                 "create solution image, all patches with large contrast")
+  ("create_test_image",     po::value<bool>(&createTest)->default_value(false),                     "output PNG image (default PPM")
+  ("test_image_path",       po::value<std::string>(&testImagePath)->default_value("/tmp/test_image.png"), "name of PNG test image")
   ;
   po::positional_options_description p;
   // eventually put filename base here as positional argument
-  // p.add();
+  p.add("test_image_path", 1);
   po::variables_map vm;
-  // po::store(po::parse_command_line(argc, argv, desc), vm);
-  po::store(po::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
+  auto parsed = po::command_line_parser(argc, argv).options(desc).positional(p).run();
+  po::store(parsed, vm);
+
   po::notify(vm); // what does this do?
   if (vm.count("help") > 0)
   {
@@ -242,6 +248,19 @@ int main(int argc, char *argv[]) {
 
   /* Replicate, dither, then output as 8-bit image */
   if (createTest) {     /* Output PNG */
+      fprintf(stderr, "count of test image path is %d", vm.count("test_image_path"));
+      if (vm.count("test_image_path") == 0) {
+      fprintf(stderr, "A test image was requested but no test image path was provided");
+      exit(1);
+    }
+
+    testImagePath = vm["test_image_path"].as<std::string>();
+    fprintf(stderr, "test_image_path is `%s'\n", testImagePath.c_str());
+    out = fopen(testImagePath.c_str(), "w");
+    if (out == NULL) {
+	fprintf(stderr, "Error: could not open file `%s' for writing test image\n");
+        exit(1);
+    }
     fprintf(stderr, "in createTest, sizeof(png_bytep) is %d, width %d, height %d\n", sizeof(png_bytep), width, height);
     /* Initialize pnglib memory and error handling */
     unsigned char * * graph_;

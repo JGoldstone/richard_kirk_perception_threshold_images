@@ -18,4 +18,4 @@ visionTestPNG : visionTestPNG.cpp
 	clang++ $(CXXFLAGS) $(LFLAGS) $< -o $@
 
 testImage : visionTestPNG
-	./visionTestPNG
+	./visionTestPNG /tmp/a_test.png
